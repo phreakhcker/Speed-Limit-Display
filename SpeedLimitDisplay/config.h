@@ -159,8 +159,47 @@ static const int BRIGHT_LEVEL_COUNT = sizeof(BRIGHT_LEVELS) / sizeof(BRIGHT_LEVE
 // Non-blocking: we check periodically, we don't freeze the whole device.
 static const uint32_t WIFI_CONNECT_TIMEOUT_MS = 10000;
 
-// How long to wait after a failed WiFi connection before trying again.
-static const uint32_t WIFI_RETRY_INTERVAL_MS = 5000;
+// Initial wait after a failed WiFi connection before trying again.
+// Uses exponential backoff: 5s → 10s → 20s → 40s → capped at max.
+static const uint32_t WIFI_RETRY_INITIAL_MS = 5000;
+
+// Maximum backoff time between WiFi reconnect attempts.
+static const uint32_t WIFI_RETRY_MAX_MS = 60000;
+
+// =====================
+// API RATE LIMITING
+// =====================
+// TomTom's free tier allows 2,500 requests per day and 5 per second.
+// These settings help us stay within the limits gracefully.
+
+// TomTom's daily free tier limit.
+static const int API_DAILY_LIMIT = 2500;
+
+// Warn the user (via serial + status icon) when this % of the daily limit is used.
+// 80% of 2,500 = 2,000 calls.
+static const int API_WARN_PERCENT = 80;
+
+// When we get rate-limited (HTTP 429), wait at least this long before retrying.
+// Uses exponential backoff: 10s → 20s → 40s → 80s → capped at max.
+static const uint32_t RATE_LIMIT_INITIAL_MS = 10000;
+
+// Maximum backoff when rate-limited.
+static const uint32_t RATE_LIMIT_MAX_MS = 120000;   // 2 minutes
+
+// =====================
+// DUAL-CORE (Background HTTP)
+// =====================
+// The ESP32 (original, S3) has 2 CPU cores. We can run the API calls
+// on Core 0 (background) while GPS + display runs on Core 1 (main loop).
+// Single-core chips (S2, C3) fall back to inline HTTP calls automatically.
+//
+// "Stack size" is how much memory the background task gets for local variables.
+// HTTP + JSON parsing needs a decent amount. 8KB is safe.
+static const int HTTP_TASK_STACK_SIZE = 8192;
+
+// How often the background task checks for new work (milliseconds).
+// Lower = more responsive, but wastes CPU cycles checking.
+static const int HTTP_TASK_POLL_MS = 50;
 
 // =====================
 // WATCHDOG

@@ -1,5 +1,5 @@
 // =============================================
-// SPEED LIMIT DISPLAY — Rev 4
+// SPEED LIMIT DISPLAY — Rev 4.1 (Phase 2)
 // =============================================
 // ESP32 Mini + GPS + SSD1351 OLED + TomTom API
 //
@@ -9,7 +9,7 @@
 //   - Shows the speed limit on the OLED display
 //   - Changes color: GREEN (ok), YELLOW (close to limit), RED (over limit)
 //
-// What's new in Rev4 (vs Rev3):
+// Rev4 Phase 1 changes (vs Rev3):
 //   - Uses TomTom "Snap to Roads" API instead of Reverse Geocode
 //     → sends your heading and speed so TomTom picks the RIGHT road
 //   - Buffers multiple GPS points for better road matching
@@ -20,6 +20,14 @@
 //   - Watchdog timer (auto-reboots if device freezes)
 //   - Credentials in separate file (config_secrets.h)
 //   - All tunable settings in config.h
+//
+// Rev4.1 Phase 2 changes:
+//   - Dual-core background HTTP: API calls run on Core 0 while GPS/display
+//     runs on Core 1. Display never freezes. Falls back to inline on single-core.
+//   - API rate limit handling: detects HTTP 429, exponential backoff
+//   - Daily API quota tracking with warnings at 80% usage
+//   - WiFi exponential backoff: smarter reconnection (5s→10s→20s→40s→60s max)
+//   - WiFi disconnect/reconnect event logging
 //
 // Hardware:
 //   - ESP32 Mini (any variant: S2, S3, C3, or original)
@@ -146,10 +154,49 @@ bool menuDirty  = true;             // Does the menu need to be redrawn?
 enum OverState : uint8_t { OK_GREEN, WARN_YELLOW, OVER_RED };
 OverState overState = OK_GREEN;
 
-// --- WiFi state (non-blocking) ---
+// --- WiFi state (non-blocking with exponential backoff) ---
 bool     wifiConnecting    = false;   // Are we in the middle of connecting?
 uint32_t wifiConnectStart  = 0;       // When we started the current connection attempt
 uint32_t wifiLastAttemptMs = 0;       // When we last tried to connect
+uint32_t wifiRetryMs       = WIFI_RETRY_INITIAL_MS;  // Current backoff delay (grows on failures)
+int      wifiFailCount     = 0;       // Consecutive failed attempts
+bool     wifiWasConnected  = false;   // Were we connected last loop? (for disconnect logging)
+
+// --- API rate limiting ---
+// Tracks usage and implements exponential backoff when rate-limited.
+int      apiCallsToday     = 0;       // Approximate API calls made today (resets on reboot)
+uint32_t apiBackoffUntil   = 0;       // Don't make API calls until this millis() timestamp
+uint32_t apiBackoffMs      = RATE_LIMIT_INITIAL_MS;  // Current backoff delay
+bool     apiRateLimited    = false;   // Are we currently in a rate-limit backoff?
+bool     apiQuotaWarned    = false;   // Have we already warned about approaching quota?
+
+// --- Dual-core background HTTP ---
+// On dual-core ESP32s, API calls run on Core 0 (background) while the main
+// loop runs on Core 1. This prevents HTTP requests from freezing the display
+// and losing GPS data.
+//
+// How it works:
+//   1. Main loop sets requestNeeded = true and fills in the request lat/lon
+//   2. Background task sees the flag, makes the HTTP call, stores the result
+//   3. Main loop sees resultReady = true and reads the speed limit
+//
+// "volatile" tells the compiler: "another thread might change this variable
+// at any time, so always read it from memory, don't cache it in a register."
+struct HttpRequest {
+  volatile bool    requestNeeded;   // Main loop → background: "please make an API call"
+  volatile bool    resultReady;     // Background → main loop: "result is ready"
+  volatile bool    taskRunning;     // Is the background task alive?
+  double           lat;             // Request: GPS latitude
+  double           lon;             // Request: GPS longitude
+  GpsPoint         points[GPS_BUFFER_SIZE];  // Copy of GPS buffer for the request
+  int              pointCount;      // How many valid points in the buffer
+  volatile int     resultLimit;     // Response: speed limit (-1 = failed)
+  volatile bool    resultFailed;    // Response: did the API call fail?
+  volatile int     httpCode;        // Response: HTTP status code (for rate limit detection)
+};
+
+HttpRequest httpReq = { false, false, false, 0, 0, {}, 0, -1, false, 0 };
+bool dualCoreAvailable = false;     // Set in setup() based on chip type
 
 // --- GPS point buffer for Snap-to-Roads ---
 // We store the last few GPS readings so we can send them all to TomTom.
@@ -255,6 +302,12 @@ void checkSerialCommands() {
         brightIdx + 1, BRIGHT_LEVEL_COUNT, brightnessScale * 100);
       Serial.printf("  Buffer points: %d/%d\n",
         min(limitHistoryCount, LIMIT_HISTORY_SIZE), LIMIT_HISTORY_SIZE);
+      Serial.printf("  Dual-core: %s\n", dualCoreAvailable ? "YES (HTTP on Core 0)" : "NO (inline HTTP)");
+      Serial.printf("  API calls today: ~%d / %d\n", apiCallsToday, API_DAILY_LIMIT);
+      Serial.printf("  Rate limited: %s", apiRateLimited ? "YES" : "no");
+      if (apiRateLimited) Serial.printf(" (backoff: %lu ms)", apiBackoffMs);
+      Serial.println();
+      Serial.printf("  WiFi fails: %d (retry delay: %lu ms)\n", wifiFailCount, wifiRetryMs);
       Serial.println("==================");
     }
   }
@@ -444,37 +497,69 @@ void bufferGpsPoint() {
 
 
 // =============================================================
-// SECTION 8: WIFI (Non-Blocking)
+// SECTION 8: WIFI (Non-Blocking with Exponential Backoff)
 // =============================================================
 // "Non-blocking" means we don't freeze the device waiting for WiFi.
 // Instead, we start the connection and check back each loop iteration.
 // Meanwhile, GPS keeps running, the display keeps updating, etc.
+//
+// "Exponential backoff" means: if WiFi fails, we wait longer between
+// each retry. First retry after 5s, then 10s, then 20s, then 40s, etc.
+// This prevents hammering the WiFi chip when you're out of range.
+// Once we connect, the backoff resets to the short initial delay.
 
 // Call this every loop iteration. It manages WiFi without blocking.
 // Returns true if WiFi is currently connected and ready to use.
 bool wifiManage() {
-  // Already connected? Great, nothing to do.
-  if (WiFi.status() == WL_CONNECTED) {
+  bool connected = (WiFi.status() == WL_CONNECTED);
+
+  // --- Detect disconnect events (for logging) ---
+  if (wifiWasConnected && !connected) {
+    Serial.println("[WiFi] CONNECTION LOST — will auto-reconnect");
+    wifiWasConnected = false;
+    wifiConnecting = false;
+    // Don't reset backoff here — let it grow if we keep losing connection
+  }
+
+  // --- Already connected? Reset backoff and return. ---
+  if (connected) {
+    if (!wifiWasConnected) {
+      // Just connected! Log it and reset backoff.
+      Serial.printf("[WiFi] Connected! IP: %s  RSSI: %d dBm\n",
+                    WiFi.localIP().toString().c_str(), WiFi.RSSI());
+      wifiFailCount = 0;
+      wifiRetryMs = WIFI_RETRY_INITIAL_MS;   // Reset backoff for next time
+    }
+    wifiWasConnected = true;
     wifiConnecting = false;
     return true;
   }
 
-  // Are we currently trying to connect?
+  // --- Currently trying to connect? ---
   if (wifiConnecting) {
-    // Check if we've been trying too long
     if ((millis() - wifiConnectStart) > WIFI_CONNECT_TIMEOUT_MS) {
-      Serial.println("[WiFi] Connection attempt timed out");
+      // Timed out — give up this attempt
+      wifiFailCount++;
       WiFi.disconnect();
       wifiConnecting = false;
       wifiLastAttemptMs = millis();
+
+      // Exponential backoff: double the retry delay (capped at max)
+      // "<<" is a bit shift — equivalent to multiplying by 2.
+      // We cap the exponent at 6 to prevent overflow (2^6 = 64x max multiplier).
+      int exponent = min(wifiFailCount, 6);
+      wifiRetryMs = min(WIFI_RETRY_INITIAL_MS << exponent, WIFI_RETRY_MAX_MS);
+
+      Serial.printf("[WiFi] Attempt #%d timed out. Next retry in %lu ms\n",
+                    wifiFailCount, wifiRetryMs);
     }
-    // Still waiting — don't block, just return and try again next loop
-    return false;
+    return false;   // Still waiting
   }
 
-  // Not connected and not trying — should we start a new attempt?
-  if ((millis() - wifiLastAttemptMs) >= WIFI_RETRY_INTERVAL_MS) {
-    Serial.println("[WiFi] Starting connection attempt...");
+  // --- Not connected, not trying — should we start a new attempt? ---
+  if ((millis() - wifiLastAttemptMs) >= wifiRetryMs) {
+    Serial.printf("[WiFi] Connecting to: %s (attempt #%d)...\n",
+                  WIFI_SSID, wifiFailCount + 1);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     wifiConnecting = true;
@@ -614,6 +699,11 @@ int smoothSpeedLimit(int rawLimit) {
 // SECTION 11: TOMTOM API
 // =============================================================
 
+// --- Last HTTP status code from API calls ---
+// Used by fetchSpeedLimit() to detect 429 rate limits.
+// Set by both SnapToRoads and ReverseGeocode sub-functions.
+int lastHttpCode = 0;
+
 // --- Snap to Roads (PRIMARY — more accurate) ---
 // This endpoint takes GPS points with heading and speed, and matches
 // them to the actual road network. Much better than Reverse Geocode
@@ -677,6 +767,7 @@ int fetchSpeedLimitSnapToRoads(double lat, double lon) {
   http.addHeader("Content-Type", "application/json");
 
   int httpCode = http.POST(body);
+  lastHttpCode = httpCode;    // Store for rate limit detection
 
   if (httpCode != 200) {
     Serial.printf("[API] Snap-to-Roads failed: HTTP %d\n", httpCode);
@@ -768,6 +859,7 @@ int fetchSpeedLimitReverseGeocode(double lat, double lon) {
   http.begin(url);
 
   int httpCode = http.GET();
+  lastHttpCode = httpCode;    // Store for rate limit detection
   if (httpCode != 200) {
     Serial.printf("[API] Reverse Geocode failed: HTTP %d\n", httpCode);
     http.end();
@@ -803,9 +895,23 @@ int fetchSpeedLimitReverseGeocode(double lat, double lon) {
 
 
 // --- Main speed limit fetch — tries Snap-to-Roads first, falls back to Reverse Geocode ---
-int fetchSpeedLimit(double lat, double lon) {
+// Also handles rate limiting, quota tracking, and GPS data draining.
+// The `outHttpCode` pointer lets the caller know what HTTP status we got
+// (important for detecting 429 rate limits).
+int fetchSpeedLimit(double lat, double lon, int* outHttpCode) {
+  *outHttpCode = 0;
+  lastHttpCode = 0;
+
   // Must have WiFi
   if (WiFi.status() != WL_CONNECTED) return -1;
+
+  // Check if we're in a rate-limit backoff period
+  if (apiRateLimited && millis() < apiBackoffUntil) {
+    Serial.printf("[API] Rate-limited, waiting %lu more ms\n",
+                  apiBackoffUntil - millis());
+    return -1;
+  }
+  apiRateLimited = false;
 
   // Drain any GPS data that arrived while we were doing HTTP
   // (prevents data loss during the API call)
@@ -816,6 +922,7 @@ int fetchSpeedLimit(double lat, double lon) {
 
   // Try Snap-to-Roads first (better accuracy)
   int limit = fetchSpeedLimitSnapToRoads(lat, lon);
+  apiCallsToday++;   // Track usage
 
   // Drain GPS again between API calls
   while (GPSSerial.available()) {
@@ -826,6 +933,7 @@ int fetchSpeedLimit(double lat, double lon) {
   // If Snap-to-Roads didn't work, try Reverse Geocode
   if (limit <= 0) {
     limit = fetchSpeedLimitReverseGeocode(lat, lon);
+    apiCallsToday++;   // This counts as a second API call
   }
 
   // Drain GPS one more time after all API work is done
@@ -834,7 +942,37 @@ int fetchSpeedLimit(double lat, double lon) {
     lastByteMs = millis();
   }
 
+  // Propagate the HTTP status code to the caller
+  *outHttpCode = lastHttpCode;
+
+  // Check quota usage and warn if approaching limit
+  int warnThreshold = (API_DAILY_LIMIT * API_WARN_PERCENT) / 100;
+  if (apiCallsToday >= warnThreshold && !apiQuotaWarned) {
+    Serial.printf("[API] WARNING: %d calls today (~%d%% of %d daily limit)\n",
+                  apiCallsToday, (apiCallsToday * 100) / API_DAILY_LIMIT, API_DAILY_LIMIT);
+    apiQuotaWarned = true;
+  }
+
   return limit;
+}
+
+// Handle a rate-limit response (HTTP 429).
+// Implements exponential backoff: wait longer each time we get rate-limited.
+void handleRateLimit() {
+  apiRateLimited = true;
+  apiBackoffUntil = millis() + apiBackoffMs;
+  Serial.printf("[API] RATE LIMITED (429)! Backing off for %lu ms\n", apiBackoffMs);
+
+  // Double the backoff for next time (capped at max)
+  apiBackoffMs = min(apiBackoffMs * 2, RATE_LIMIT_MAX_MS);
+}
+
+// Reset rate-limit backoff after a successful API call.
+void resetRateLimitBackoff() {
+  if (apiBackoffMs != RATE_LIMIT_INITIAL_MS) {
+    apiBackoffMs = RATE_LIMIT_INITIAL_MS;
+    Serial.println("[API] Rate limit backoff reset");
+  }
 }
 
 
@@ -1100,7 +1238,74 @@ void exitMenu() {
 
 
 // =============================================================
-// SECTION 15: SETUP (runs once on boot)
+// SECTION 15: BACKGROUND HTTP TASK (Dual-Core)
+// =============================================================
+// The ESP32 (original and S3) has TWO CPU cores:
+//   - Core 1: runs setup() and loop() — handles GPS, display, buttons
+//   - Core 0: normally idle (used by WiFi/BT stack) — we put our HTTP calls here
+//
+// Why? HTTP requests take 1-5 seconds. During that time, on a single core,
+// NOTHING else runs — GPS data piles up and overflows, the display freezes.
+// By running HTTP on Core 0, the main loop on Core 1 keeps running smoothly.
+//
+// On single-core chips (ESP32-S2, ESP32-C3), this task doesn't start.
+// Instead, API calls happen inline in the main loop (like Rev4 Phase 1).
+//
+// Communication between cores uses the `httpReq` struct with volatile flags.
+// "volatile" = "always read from actual memory, not a cached copy."
+
+// This function runs forever on Core 0. It sleeps most of the time,
+// wakes up when the main loop sets requestNeeded = true, does the HTTP call,
+// and stores the result.
+void httpBackgroundTask(void* parameter) {
+  Serial.println("[HTTP-TASK] Background HTTP task started on Core 0");
+  httpReq.taskRunning = true;
+
+  for (;;) {   // Run forever (FreeRTOS tasks must never return)
+    // Wait for a request from the main loop
+    if (!httpReq.requestNeeded) {
+      vTaskDelay(pdMS_TO_TICKS(HTTP_TASK_POLL_MS));   // Sleep to save power
+      continue;
+    }
+
+    // We have a request! Make the API call.
+    int httpCode = 0;
+    int limit = fetchSpeedLimit(httpReq.lat, httpReq.lon, &httpCode);
+
+    // Store the result for the main loop to pick up
+    httpReq.resultLimit  = limit;
+    httpReq.resultFailed = (limit <= 0);
+    httpReq.httpCode     = httpCode;
+    httpReq.requestNeeded = false;   // Clear the request flag
+    httpReq.resultReady   = true;    // Signal that result is available
+
+    // Small delay to prevent busy-looping right after a result
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+}
+
+// Copy the current GPS buffer into the HTTP request struct.
+// This gives the background task its own copy of the GPS data,
+// so it doesn't conflict with the main loop writing new points.
+void prepareHttpRequest(double lat, double lon) {
+  httpReq.lat = lat;
+  httpReq.lon = lon;
+
+  // Copy GPS buffer
+  httpReq.pointCount = 0;
+  for (int i = 0; i < GPS_BUFFER_SIZE; i++) {
+    httpReq.points[i] = gpsBuffer[i];   // Struct copy
+    if (gpsBuffer[i].valid) httpReq.pointCount++;
+  }
+
+  httpReq.resultReady = false;
+  httpReq.resultFailed = false;
+  httpReq.requestNeeded = true;   // Signal the background task
+}
+
+
+// =============================================================
+// SECTION 16: SETUP (runs once on boot)
 // =============================================================
 
 void setup() {
@@ -1108,7 +1313,7 @@ void setup() {
   Serial.begin(115200);
   delay(300);
   Serial.println("========================================");
-  Serial.println("  Speed Limit Display — Rev 4");
+  Serial.println("  Speed Limit Display — Rev 4.1");
   Serial.println("========================================");
   Serial.println("Commands: 'r' = reboot, 'd' = debug info");
   Serial.println();
@@ -1133,7 +1338,7 @@ void setup() {
   display.setCursor(10, 50);
   display.print("Speed");
   display.setCursor(10, 70);
-  display.print("Limit v4");
+  display.print("Limit v4.1");
   display.setTextColor(C_GRAY());
   display.setCursor(10, 100);
   display.print("Starting...");
@@ -1164,6 +1369,36 @@ void setup() {
   esp_task_wdt_init(WATCHDOG_TIMEOUT_SEC, true);  // true = reboot on timeout
   esp_task_wdt_add(NULL);   // Monitor this task (the main loop task)
   Serial.printf("[WDT] Watchdog armed: %d second timeout\n", WATCHDOG_TIMEOUT_SEC);
+
+  // --- Detect dual-core and launch background HTTP task ---
+  // ESP32 (original, S3) = 2 cores. ESP32-S2, C3 = 1 core.
+  // We check at runtime so the same code works on all variants.
+  int coreCount = ESP.getChipCores();
+  Serial.printf("[BOOT] Chip: %s, %d core(s), %d MHz\n",
+                ESP.getChipModel(), coreCount, ESP.getCpuFreqMHz());
+
+  if (coreCount >= 2) {
+    dualCoreAvailable = true;
+
+    // Create a FreeRTOS task pinned to Core 0.
+    // xTaskCreatePinnedToCore(function, name, stack_size, parameter, priority, handle, core)
+    //   - Priority 1 = low (WiFi stack is priority 19+, we don't want to starve it)
+    //   - Core 0 = the "other" core (setup/loop run on Core 1)
+    xTaskCreatePinnedToCore(
+      httpBackgroundTask,       // Function to run
+      "HttpTask",               // Human-readable name (for debugging)
+      HTTP_TASK_STACK_SIZE,     // Stack size in bytes (8KB)
+      NULL,                     // Parameter to pass (we use global httpReq instead)
+      1,                        // Priority (1 = low, below WiFi stack)
+      NULL,                     // Task handle (we don't need to reference it later)
+      0                         // Core 0
+    );
+
+    Serial.println("[BOOT] Dual-core mode: HTTP calls run on Core 0 (background)");
+  } else {
+    dualCoreAvailable = false;
+    Serial.println("[BOOT] Single-core mode: HTTP calls run inline (may cause brief display freezes)");
+  }
 
   // Reset display cache
   lastMainText     = "";
@@ -1249,10 +1484,11 @@ void loop() {
   int wBars = wifiReady ? wifiBars() : 0;
 
   // --- API warning icon ---
+  // Shows "!" in the status bar when something is wrong with API calls.
   bool recentFail = (millis() - lastApiFailMs) < API_WARN_WINDOW_MS;
   bool noLimitTooLong = (fixValid && currentSpeedLimitMph <= 0 &&
                          firstFixMs != 0 && (millis() - firstFixMs) > API_NO_LIMIT_WARN_MS);
-  bool apiWarn = recentFail || noLimitTooLong;
+  bool apiWarn = recentFail || noLimitTooLong || apiRateLimited;
 
   // --- Draw status bar ---
   drawTopStatusBar(fixValid, acquiring ? blinkOn : false, sats, wBars, apiWarn);
@@ -1283,30 +1519,69 @@ void loop() {
     if (speedMph < SPEED_DEAD_ZONE_MPH) speedMph = 0;
   }
 
-  // --- Should we call the API? ---
-  bool timeOk = (millis() - lastApiMs) >= apiMinIntervalMs;
-  bool moveOk = true;
-  if (haveApiPos) {
-    moveOk = distanceMeters(lat, lon, lastApiLat, lastApiLon) >= apiMinMoveM;
-  }
+  // --- Check for background HTTP results (dual-core mode) ---
+  // If the background task finished an API call, pick up the result.
+  if (dualCoreAvailable && httpReq.resultReady) {
+    httpReq.resultReady = false;   // Acknowledge the result
 
-  if (timeOk && moveOk && wifiReady) {
-    // Make the API call
-    int rawLimit = fetchSpeedLimit(lat, lon);
-
-    if (rawLimit > 0) {
-      // Apply smoothing — rejects wild jumps from false road matches
-      int smoothed = smoothSpeedLimit(rawLimit);
+    if (httpReq.httpCode == 429) {
+      // Rate limited! Start exponential backoff.
+      handleRateLimit();
+      lastApiFailMs = millis();
+    } else if (httpReq.resultLimit > 0) {
+      // Got a valid speed limit — apply smoothing
+      int smoothed = smoothSpeedLimit(httpReq.resultLimit);
       currentSpeedLimitMph = smoothed;
       lastGoodLimitMs = millis();
-      lastApiLat = lat;
-      lastApiLon = lon;
+      lastApiLat = httpReq.lat;
+      lastApiLon = httpReq.lon;
       haveApiPos = true;
+      resetRateLimitBackoff();   // Successful call, reset backoff
     } else {
       lastApiFailMs = millis();
     }
 
     lastApiMs = millis();
+  }
+
+  // --- Should we request an API call? ---
+  bool timeOk = (millis() - lastApiMs) >= apiMinIntervalMs;
+  bool moveOk = true;
+  if (haveApiPos) {
+    moveOk = distanceMeters(lat, lon, lastApiLat, lastApiLon) >= apiMinMoveM;
+  }
+  bool rateLimitOk = !apiRateLimited || (millis() >= apiBackoffUntil);
+
+  if (timeOk && moveOk && wifiReady && rateLimitOk) {
+    if (dualCoreAvailable) {
+      // --- DUAL-CORE: hand off to background task (non-blocking!) ---
+      // We only start a new request if the background task isn't already busy.
+      if (!httpReq.requestNeeded) {
+        prepareHttpRequest(lat, lon);
+        lastApiMs = millis();   // Mark that we've initiated a call
+      }
+    } else {
+      // --- SINGLE-CORE: make the API call inline (blocks briefly) ---
+      int httpCode = 0;
+      int rawLimit = fetchSpeedLimit(lat, lon, &httpCode);
+
+      if (httpCode == 429) {
+        handleRateLimit();
+        lastApiFailMs = millis();
+      } else if (rawLimit > 0) {
+        int smoothed = smoothSpeedLimit(rawLimit);
+        currentSpeedLimitMph = smoothed;
+        lastGoodLimitMs = millis();
+        lastApiLat = lat;
+        lastApiLon = lon;
+        haveApiPos = true;
+        resetRateLimitBackoff();
+      } else {
+        lastApiFailMs = millis();
+      }
+
+      lastApiMs = millis();
+    }
   }
 
   // --- Is the speed limit still fresh enough to display? ---
