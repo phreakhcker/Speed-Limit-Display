@@ -418,63 +418,257 @@ BtnEvent pollButtonEvent() {
 
 
 // =============================================================
-// SECTION 7: GPS FUNCTIONS
+// SECTION 7: GPS FUNCTIONS (u-blox UBX Protocol)
 // =============================================================
+// The GT-U7 GPS module uses a u-blox NEO-6M compatible chip.
+// u-blox modules speak the UBX BINARY protocol — NOT the PMTK
+// text commands used by MediaTek GPS chips.
+//
+// UBX message format:
+//   [0xB5] [0x62] [class] [id] [length-lo] [length-hi] [payload...] [ckA] [ckB]
+//
+// The checksum (ckA, ckB) is a Fletcher checksum over class+id+length+payload.
+// We calculate it automatically in the ubxSend() function below.
 
-// Calculate NMEA checksum (XOR of all characters between $ and *)
-uint8_t nmeaChecksum(const char* s) {
-  uint8_t cs = 0;
-  for (; *s; s++) cs ^= (uint8_t)(*s);
-  return cs;
+// Send a UBX binary message to the GPS module.
+// This handles the framing (sync bytes), checksum calculation, and transmission.
+// You just provide the message class, ID, and payload — this function does the rest.
+void ubxSend(uint8_t msgClass, uint8_t msgId, const uint8_t* payload, uint16_t len) {
+  // Sync characters — every UBX message starts with these two bytes
+  GPSSerial.write(0xB5);
+  GPSSerial.write(0x62);
+
+  // Fletcher checksum accumulators
+  // "Fletcher checksum" = a simple but effective error-detection algorithm.
+  // It runs over class + id + length + payload bytes.
+  uint8_t ckA = 0, ckB = 0;
+
+  // Helper: add a byte to the checksum AND send it
+  // We use a local variable approach since lambdas can be tricky on some Arduino cores.
+  // Instead, we'll inline it.
+
+  // Class byte
+  GPSSerial.write(msgClass);
+  ckA += msgClass; ckB += ckA;
+
+  // ID byte
+  GPSSerial.write(msgId);
+  ckA += msgId; ckB += ckA;
+
+  // Length (2 bytes, little-endian — low byte first)
+  uint8_t lenLo = (uint8_t)(len & 0xFF);
+  uint8_t lenHi = (uint8_t)(len >> 8);
+  GPSSerial.write(lenLo);
+  ckA += lenLo; ckB += ckA;
+  GPSSerial.write(lenHi);
+  ckA += lenHi; ckB += ckA;
+
+  // Payload bytes
+  for (uint16_t i = 0; i < len; i++) {
+    GPSSerial.write(payload[i]);
+    ckA += payload[i]; ckB += ckA;
+  }
+
+  // Checksum
+  GPSSerial.write(ckA);
+  GPSSerial.write(ckB);
 }
 
-// Send a PMTK command to the GPS module.
-// PMTK = "MTK Proprietary NMEA sentence" — commands specific to MediaTek GPS chips
-// (which are used in most cheap GPS modules like NEO-6M, BN-220, etc.)
-void gpsSendPMTK(const char* body) {
-  char buf[96];
-  uint8_t cs = nmeaChecksum(body);
-  snprintf(buf, sizeof(buf), "$%s*%02X\r\n", body, cs);
-  GPSSerial.print(buf);
+// Set GPS update rate.
+// The NEO-6M can reliably do 5Hz (200ms between fixes).
+// Some clones claim 10Hz but it's often unstable — 5Hz is the safe max.
+// Even 5Hz is 5x better than the 1Hz default!
+void gpsSetUpdateRate() {
+  // UBX-CFG-RATE (class=0x06, id=0x08)
+  // Payload (6 bytes):
+  //   measRate: measurement interval in ms (200 = 5Hz)
+  //   navRate:  how many measurements per navigation solution (1 = every measurement)
+  //   timeRef:  time reference (1 = GPS time)
+  uint8_t payload[] = {
+    0xC8, 0x00,   // measRate = 200ms (5Hz) — little-endian: 0x00C8 = 200
+    0x01, 0x00,   // navRate = 1
+    0x01, 0x00    // timeRef = GPS time
+  };
+  ubxSend(0x06, 0x08, payload, sizeof(payload));
+  Serial.println("[GPS] Update rate set to 5Hz (200ms)");
 }
 
-// Configure GPS for our use case:
-//   - RMC only: reduces serial traffic (we only need position, speed, heading)
-//   - 10Hz: updates 10 times per second (smooth speed readings)
-//   - Vehicle mode: optimizes GPS filtering for car movement
+// Set GPS to automotive navigation mode.
+// This tells the GPS chip "I'm in a car" so it can optimize its filtering:
+//   - Expects higher speeds and smoother turns
+//   - Rejects impossible position jumps
+//   - Better accuracy on roads vs open field
+void gpsSetAutomotiveMode() {
+  // UBX-CFG-NAV5 (class=0x06, id=0x24)
+  // Payload is 36 bytes. Most are zero (don't change).
+  // We only set the mask (which fields to apply) and dynModel.
+  uint8_t payload[36] = {0};
+  payload[0] = 0x01;   // mask low byte: apply dynModel only
+  payload[1] = 0x00;   // mask high byte
+  payload[2] = 0x04;   // dynModel = 4 (Automotive)
+  // All other bytes stay 0 (don't change those settings)
+
+  // dynModel options for reference:
+  //   0 = Portable (default)
+  //   2 = Stationary
+  //   3 = Pedestrian
+  //   4 = Automotive  ← what we want
+  //   5 = Sea
+  //   6 = Airborne <1G
+  //   7 = Airborne <2G
+  //   8 = Airborne <4G
+
+  ubxSend(0x06, 0x24, payload, sizeof(payload));
+  Serial.println("[GPS] Navigation mode set to Automotive");
+}
+
+// Configure which NMEA messages the GPS sends.
+// We only want RMC (position, speed, heading) and GGA (fix quality, satellites).
+// Disabling the others (GLL, GSA, GSV, VTG) reduces serial traffic,
+// which is important at higher baud rates and update rates.
+void gpsConfigureMessages() {
+  // UBX-CFG-MSG (class=0x06, id=0x01)
+  // Short form: 3-byte payload = [msgClass, msgId, rate]
+  // rate=0 means OFF, rate=1 means send every nav solution
+
+  // NMEA message class is 0xF0
+  // Message IDs:
+  //   0x00 = GGA (fix data, satellites)     — KEEP ON
+  //   0x01 = GLL (lat/lon)                  — turn off
+  //   0x02 = GSA (DOP and active satellites) — turn off
+  //   0x03 = GSV (satellites in view)        — turn off
+  //   0x04 = RMC (position, speed, heading)  — KEEP ON
+  //   0x05 = VTG (track and ground speed)    — turn off
+
+  struct MsgConfig { uint8_t id; uint8_t rate; const char* name; };
+  MsgConfig msgs[] = {
+    { 0x00, 1, "GGA" },   // ON  — has satellite count and fix quality
+    { 0x01, 0, "GLL" },   // OFF — redundant with RMC
+    { 0x02, 0, "GSA" },   // OFF — DOP info we don't use
+    { 0x03, 0, "GSV" },   // OFF — satellite detail we don't need
+    { 0x04, 1, "RMC" },   // ON  — has position, speed, heading (the important one)
+    { 0x05, 0, "VTG" },   // OFF — redundant with RMC
+  };
+
+  for (int i = 0; i < 6; i++) {
+    uint8_t payload[] = { 0xF0, msgs[i].id, msgs[i].rate };
+    ubxSend(0x06, 0x01, payload, sizeof(payload));
+    delay(50);   // Give GPS time to process each command
+    Serial.printf("[GPS] %s: %s\n", msgs[i].name, msgs[i].rate ? "ON" : "off");
+  }
+}
+
+// Change the GPS module's baud rate.
+// After sending this command, the GPS immediately switches to the new baud rate.
+// We then have to switch our serial port to match.
+void gpsSetBaudRate(uint32_t baud) {
+  // UBX-CFG-PRT (class=0x06, id=0x00) — configure UART port
+  // Payload is 20 bytes for UART configuration.
+  uint8_t payload[20] = {0};
+
+  payload[0] = 0x01;   // Port ID = 1 (UART1, the main serial port)
+  // bytes 1-3: reserved (leave 0)
+
+  // bytes 4-7: UART mode = 8N1 (8 data bits, no parity, 1 stop bit)
+  // The magic value for 8N1 is 0x000008D0
+  payload[4] = 0xD0;
+  payload[5] = 0x08;
+  payload[6] = 0x00;
+  payload[7] = 0x00;
+
+  // bytes 8-11: baud rate (little-endian)
+  // 38400 = 0x00009600
+  payload[8]  = (uint8_t)(baud & 0xFF);
+  payload[9]  = (uint8_t)((baud >> 8) & 0xFF);
+  payload[10] = (uint8_t)((baud >> 16) & 0xFF);
+  payload[11] = (uint8_t)((baud >> 24) & 0xFF);
+
+  // bytes 12-13: input protocol mask (accept both UBX and NMEA)
+  payload[12] = 0x03;   // UBX + NMEA
+  payload[13] = 0x00;
+
+  // bytes 14-15: output protocol mask (send both UBX and NMEA)
+  payload[14] = 0x03;   // UBX + NMEA
+  payload[15] = 0x00;
+
+  // bytes 16-19: flags (leave 0)
+
+  ubxSend(0x06, 0x00, payload, sizeof(payload));
+  Serial.printf("[GPS] Baud rate command sent: %lu\n", baud);
+}
+
+// Save current GPS configuration to the module's flash memory.
+// Without this, the settings reset every time the GPS loses power.
+// Not all u-blox clones support this — if it doesn't work, the
+// gpsConfigureHighRate() function re-applies settings on every boot anyway.
+void gpsSaveConfig() {
+  // UBX-CFG-CFG (class=0x06, id=0x09)
+  // Payload: clearMask(4) + saveMask(4) + loadMask(4) + deviceMask(1) = 13 bytes
+  uint8_t payload[13] = {0};
+  // clearMask = 0 (don't clear anything)
+  // saveMask = save all sections
+  payload[4] = 0xFF; payload[5] = 0xFF; payload[6] = 0x00; payload[7] = 0x00;
+  // loadMask = 0 (don't load)
+  // deviceMask = 0x07 (BBR + Flash + EEPROM)
+  payload[12] = 0x07;
+
+  ubxSend(0x06, 0x09, payload, sizeof(payload));
+  Serial.println("[GPS] Configuration saved to flash");
+}
+
+// Master GPS configuration function.
+// Runs at boot to set up the GPS for our use case.
+// Sends all commands at the default 9600 baud, then switches to 38400.
 void gpsConfigureHighRate() {
-  // First: configure at default 9600 baud
-  // RMC-only output (turn off all other sentence types)
-  gpsSendPMTK("PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
-  delay(50);
+  Serial.println("[GPS] Configuring u-blox GPS module...");
 
-  // Set 10Hz update rate (100ms between fixes)
-  gpsSendPMTK("PMTK220,100");
-  delay(50);
+  // Step 1: Configure messages (at default 9600 baud)
+  gpsConfigureMessages();
+  delay(100);
 
-  // Vehicle dynamics mode (better filtering for car movement)
-  gpsSendPMTK("PMTK886,0");
-  delay(50);
+  // Step 2: Set automotive navigation mode
+  gpsSetAutomotiveMode();
+  delay(100);
 
-  // Change GPS module baud rate to 38400
-  // After this command, the GPS will start talking at 38400 instead of 9600.
-  gpsSendPMTK("PMTK251,38400");
-  delay(100);   // Give the GPS time to switch
+  // Step 3: Set 5Hz update rate
+  gpsSetUpdateRate();
+  delay(100);
 
-  // Now switch OUR serial port to match
+  // Step 4: Change baud rate to 38400
+  // IMPORTANT: After this command, the GPS immediately switches.
+  // Our serial port is still at 9600, so we need to switch too.
+  gpsSetBaudRate(GPS_TARGET_BAUD);
+  delay(100);   // Give GPS time to switch
+
+  // Step 5: Switch our serial port to match the new baud rate
   GPSSerial.end();
   delay(50);
   GPSSerial.begin(GPS_TARGET_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+  delay(200);
+
+  // Step 6: Try to save config to GPS flash (may not work on all clones)
+  gpsSaveConfig();
   delay(100);
 
-  Serial.printf("[GPS] Configured: 10Hz, RMC-only, vehicle mode, %lu baud\n", GPS_TARGET_BAUD);
+  Serial.printf("[GPS] Configured: 5Hz, RMC+GGA, automotive mode, %lu baud\n", GPS_TARGET_BAUD);
 }
 
 // Warm restart — GPS keeps its almanac/ephemeris data but re-acquires satellites.
-// Faster than a cold restart. Useful if GPS seems stuck or inaccurate.
+// Faster than a cold restart (~1 second vs ~27 seconds). Useful if GPS seems
+// stuck or inaccurate — like clearing a brief brain freeze.
 void gpsWarmRestart() {
-  gpsSendPMTK("PMTK102");
-  Serial.println("[GPS] Warm restart sent");
+  // UBX-CFG-RST (class=0x06, id=0x04)
+  // Payload (4 bytes):
+  //   navBbrMask: which data to clear (0x0001 = warm start — keep most data)
+  //   resetMode:  how to reset (0x02 = controlled software reset, GPS only)
+  //   reserved: 0
+  uint8_t payload[] = {
+    0x01, 0x00,   // navBbrMask = warm start
+    0x02,         // resetMode = controlled software reset
+    0x00          // reserved
+  };
+  ubxSend(0x06, 0x04, payload, sizeof(payload));
+  Serial.println("[GPS] Warm restart sent (UBX-CFG-RST)");
 }
 
 // Add the current GPS reading to our point buffer.
