@@ -43,9 +43,18 @@ static const int BTN_PIN = 10;
 // =====================
 
 // Baud rate = how fast data flows over the serial wire (bits per second).
-// 9600 is the GPS default but too slow for 10Hz updates.
-// 38400 gives plenty of bandwidth for 10 messages per second.
+// 9600 is the GPS default but too slow for 5Hz updates with multiple messages.
+// 38400 gives plenty of bandwidth. The code sends a UBX command to the GPS
+// module to change its baud rate, then switches our serial port to match.
 static const uint32_t GPS_TARGET_BAUD = 38400;
+
+// GPS update rate.
+// The GT-U7 (u-blox NEO-6M) can reliably do 5Hz (5 position fixes per second).
+// Some clones claim 10Hz but it's often unstable. 5Hz is 5x better than the
+// 1Hz default and plenty for driving. The code uses UBX-CFG-RATE to set this.
+// NOTE: u-blox modules use UBX binary protocol. The PMTK text commands used
+// by MediaTek GPS chips (BN-220, etc.) will NOT work on the GT-U7.
+static const int GPS_UPDATE_RATE_HZ = 5;
 
 // How many GPS points to buffer for the Snap-to-Roads API.
 // More points = better road matching, but uses more memory and bigger API request.
