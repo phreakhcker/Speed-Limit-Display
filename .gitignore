@@ -1,0 +1,21 @@
+# Private credentials — NEVER push these to GitHub
+# Each sketch folder has its own config_secrets.h
+**/config_secrets.h
+
+# Arduino / PlatformIO build artifacts
+.pio/
+build/
+*.elf
+*.bin
+*.hex
+*.map
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+*.swp
+*.swo
+*~
