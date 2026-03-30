@@ -170,6 +170,19 @@ uint32_t apiBackoffMs      = RATE_LIMIT_INITIAL_MS;  // Current backoff delay
 bool     apiRateLimited    = false;   // Are we currently in a rate-limit backoff?
 bool     apiQuotaWarned    = false;   // Have we already warned about approaching quota?
 
+// --- GPS point buffer for Snap-to-Roads ---
+// We store the last few GPS readings so we can send them all to TomTom.
+// Multiple points help TomTom figure out which road you're actually on
+// by looking at your trajectory (path of travel), not just one position.
+struct GpsPoint {
+  double   lat;
+  double   lon;
+  float    heading;     // Direction of travel in degrees (0=North, 90=East, etc.)
+  float    speedKmh;    // Speed in km/h (TomTom expects metric)
+  uint32_t timestamp;   // millis() when this point was captured
+  bool     valid;       // Is this point filled in yet?
+};
+
 // --- Dual-core background HTTP ---
 // On dual-core ESP32s, API calls run on Core 0 (background) while the main
 // loop runs on Core 1. This prevents HTTP requests from freezing the display
@@ -197,19 +210,6 @@ struct HttpRequest {
 
 HttpRequest httpReq = { false, false, false, 0, 0, {}, 0, -1, false, 0 };
 bool dualCoreAvailable = false;     // Set in setup() based on chip type
-
-// --- GPS point buffer for Snap-to-Roads ---
-// We store the last few GPS readings so we can send them all to TomTom.
-// Multiple points help TomTom figure out which road you're actually on
-// by looking at your trajectory (path of travel), not just one position.
-struct GpsPoint {
-  double   lat;
-  double   lon;
-  float    heading;     // Direction of travel in degrees (0=North, 90=East, etc.)
-  float    speedKmh;    // Speed in km/h (TomTom expects metric)
-  uint32_t timestamp;   // millis() when this point was captured
-  bool     valid;       // Is this point filled in yet?
-};
 
 GpsPoint gpsBuffer[GPS_BUFFER_SIZE];
 int      gpsBufferIndex = 0;   // Next slot to write into (circular buffer)
@@ -752,10 +752,39 @@ bool wifiManage() {
 
   // --- Not connected, not trying — should we start a new attempt? ---
   if ((millis() - wifiLastAttemptMs) >= wifiRetryMs) {
-    Serial.printf("[WiFi] Connecting to: %s (attempt #%d)...\n",
-                  WIFI_SSID, wifiFailCount + 1);
+    // Scan for known networks and connect to the first one found.
+    // This lets you have home WiFi + phone hotspot in config_secrets.h
+    // and the device automatically picks whichever is available.
+    Serial.printf("[WiFi] Scanning for known networks (attempt #%d)...\n",
+                  wifiFailCount + 1);
     WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+    int n = WiFi.scanNetworks();
+    bool found = false;
+
+    for (int i = 0; i < n && !found; i++) {
+      String scannedSSID = WiFi.SSID(i);
+      for (int j = 0; j < WIFI_NETWORK_COUNT; j++) {
+        if (scannedSSID == WIFI_NETWORKS[j][0]) {
+          Serial.printf("[WiFi] Found: %s (RSSI: %d) — connecting...\n",
+                        WIFI_NETWORKS[j][0], WiFi.RSSI(i));
+          WiFi.begin(WIFI_NETWORKS[j][0], WIFI_NETWORKS[j][1]);
+          found = true;
+          break;
+        }
+      }
+    }
+
+    WiFi.scanDelete();   // Free scan results memory
+
+    if (!found) {
+      // No known network found — try the first one in the list as a fallback
+      // (it might be hidden or the scan might have missed it)
+      Serial.printf("[WiFi] No known networks found. Trying: %s\n",
+                    WIFI_NETWORKS[0][0]);
+      WiFi.begin(WIFI_NETWORKS[0][0], WIFI_NETWORKS[0][1]);
+    }
+
     wifiConnecting = true;
     wifiConnectStart = millis();
   }
@@ -1553,14 +1582,23 @@ void setup() {
   }
 
   // Start WiFi (non-blocking — won't freeze here)
+  // On boot, try the first network. The wifiManage() function will
+  // scan for all known networks if this one doesn't connect.
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  WiFi.begin(WIFI_NETWORKS[0][0], WIFI_NETWORKS[0][1]);
   wifiConnecting = true;
   wifiConnectStart = millis();
-  Serial.printf("[WiFi] Connecting to: %s\n", WIFI_SSID);
+  Serial.printf("[WiFi] %d networks configured. Trying: %s\n",
+                WIFI_NETWORK_COUNT, WIFI_NETWORKS[0][0]);
 
   // Setup watchdog timer — reboots if main loop freezes
-  esp_task_wdt_init(WATCHDOG_TIMEOUT_SEC, true);  // true = reboot on timeout
+  // The ESP32-C3 uses a newer API that takes a config struct instead of two arguments.
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = (uint32_t)WATCHDOG_TIMEOUT_SEC * 1000,  // Convert seconds to milliseconds
+    .idle_core_mask = 0,       // Don't monitor idle tasks
+    .trigger_panic = true      // Reboot on timeout
+  };
+  esp_task_wdt_init(&wdt_config);
   esp_task_wdt_add(NULL);   // Monitor this task (the main loop task)
   Serial.printf("[WDT] Watchdog armed: %d second timeout\n", WATCHDOG_TIMEOUT_SEC);
 
