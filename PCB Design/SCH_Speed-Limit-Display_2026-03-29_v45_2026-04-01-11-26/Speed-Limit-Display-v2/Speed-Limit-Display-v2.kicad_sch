@@ -6488,6 +6488,16 @@
 	)
 	(wire
 		(pts
+			(xy 66.04 35.56) (xy 66.04 44.45)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "29d24418-df86-465a-a8bf-d76cf6796aa6")
+	)
+	(wire
+		(pts
 			(xy 57.15 78.74) (xy 57.15 86.36)
 		)
 		(stroke
@@ -6525,16 +6535,6 @@
 			(type default)
 		)
 		(uuid "32475f91-35cd-480d-8b92-36ae772c4a31")
-	)
-	(wire
-		(pts
-			(xy 67.31 12.7) (xy 67.31 46.99)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "3296fe89-0dfa-452b-95c1-db9e2a547a1d")
 	)
 	(wire
 		(pts
@@ -7198,6 +7198,16 @@
 	)
 	(wire
 		(pts
+			(xy 67.31 20.32) (xy 67.31 46.99)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b0da48f7-4ec1-4fd5-bfff-909059ae8025")
+	)
+	(wire
+		(pts
 			(xy 123.19 82.55) (xy 115.57 82.55)
 		)
 		(stroke
@@ -7358,16 +7368,6 @@
 	)
 	(wire
 		(pts
-			(xy 66.04 13.97) (xy 66.04 44.45)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "cc4d1daa-9f03-4411-ae6b-7430040f929b")
-	)
-	(wire
-		(pts
 			(xy 69.85 81.28) (xy 68.58 81.28)
 		)
 		(stroke
@@ -7498,6 +7498,16 @@
 	)
 	(wire
 		(pts
+			(xy 66.04 13.97) (xy 66.04 27.94)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fa8795a6-ac83-4d56-a873-624b32ad280f")
+	)
+	(wire
+		(pts
 			(xy 163.83 13.97) (xy 163.83 90.17)
 		)
 		(stroke
@@ -7548,7 +7558,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Fuse:Fuse_1206_3216Metric"
 			(at 48.26 20.32 0)
 			(hide yes)
 			(show_name no)
@@ -7863,7 +7873,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "LED_SMD:LED_0603_1608Metric"
 			(at 86.36 153.67 0)
 			(hide yes)
 			(show_name no)
@@ -8034,7 +8044,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
 			(at 145.7452 64.77 0)
 			(hide yes)
 			(show_name no)
@@ -8348,7 +8358,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Diode_SMD:D_SOD-323"
 			(at 49.53 13.97 0)
 			(hide yes)
 			(show_name no)
@@ -9075,7 +9085,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
 			(at 58.1152 78.74 0)
 			(hide yes)
 			(show_name no)
@@ -9234,7 +9244,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Button_Switch_SMD:SW_SPST_PTS645Sx43SMTR92"
 			(at 121.92 50.8 0)
 			(hide yes)
 			(show_name no)
@@ -9473,7 +9483,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Connector_Coaxial:U.FL_Hirose_U.FL-R-SMT-1_Vertical"
 			(at 93.98 59.69 0)
 			(hide yes)
 			(show_name no)
@@ -9553,7 +9563,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Connector_USB:USB_C_Receptacle_GCT_USB4085"
 			(at 27.94 46.99 0)
 			(hide yes)
 			(show_name no)
@@ -9704,7 +9714,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
 			(at 29.972 101.6 90)
 			(hide yes)
 			(show_name no)
@@ -9942,7 +9952,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Button_Switch_SMD:SW_SPST_PTS645Sx43SMTR92"
 			(at 134.62 50.8 0)
 			(hide yes)
 			(show_name no)
@@ -10238,6 +10248,88 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 67.31 16.51 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "7cc64b9e-9db1-4aea-9cff-7b5c6672a1ad")
+		(property "Reference" "R8"
+			(at 69.85 15.2399 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "22"
+			(at 69.85 17.7799 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+			(at 65.532 16.51 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 67.31 16.51 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 67.31 16.51 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "5dae0f07-92c8-490c-bce9-f926b1ea8dcd")
+		)
+		(pin "2"
+			(uuid "442ef201-3cc6-44c0-940a-08440226f209")
+		)
+		(instances
+			(project "Speed-Limit-Display-v2"
+				(path "/021668ec-f5c9-4c85-a0a5-b6e62158b17d"
+					(reference "R8")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 143.51 127 0)
 		(unit 1)
@@ -10347,7 +10439,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Rotary_Encoder:RotaryEncoder_Alps_EC11E-Switch_Vertical_H20mm"
 			(at 92.71 114.046 0)
 			(hide yes)
 			(show_name no)
@@ -10438,7 +10530,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0805_2012Metric"
 			(at 54.3052 99.06 0)
 			(hide yes)
 			(show_name no)
@@ -10676,7 +10768,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0805_2012Metric"
 			(at 82.2452 71.12 0)
 			(hide yes)
 			(show_name no)
@@ -10758,7 +10850,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
 			(at 118.872 36.83 90)
 			(hide yes)
 			(show_name no)
@@ -10918,7 +11010,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
 			(at 92.202 147.32 90)
 			(hide yes)
 			(show_name no)
@@ -10998,7 +11090,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Connector_FFC-FPC:Hirose_FH12-12S-0.5SH_1x12-1MP_P0.50mm_Horizontal"
 			(at 110.49 160.02 0)
 			(hide yes)
 			(show_name no)
@@ -11188,7 +11280,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
 			(at 105.1052 24.13 0)
 			(hide yes)
 			(show_name no)
@@ -11949,7 +12041,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
 			(at 115.062 45.72 90)
 			(hide yes)
 			(show_name no)
@@ -12265,7 +12357,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
 			(at 38.862 101.6 90)
 			(hide yes)
 			(show_name no)
@@ -12425,7 +12517,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
 			(at 96.2152 88.9 0)
 			(hide yes)
 			(show_name no)
@@ -12507,7 +12599,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
 			(at 117.602 67.31 90)
 			(hide yes)
 			(show_name no)
@@ -12944,7 +13036,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Buzzer_Beeper:Buzzer_Murata_PKMCS0909E"
 			(at 95.885 135.89 90)
 			(hide yes)
 			(show_name no)
@@ -13066,6 +13158,88 @@
 			(project "Speed-Limit-Display-v2"
 				(path "/021668ec-f5c9-4c85-a0a5-b6e62158b17d"
 					(reference "#PWR019")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 66.04 31.75 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "ff6a3d79-25a9-4988-9066-fe08a54b68ab")
+		(property "Reference" "R7"
+			(at 68.58 30.4799 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "22"
+			(at 68.58 33.0199 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+			(at 64.262 31.75 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 66.04 31.75 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 66.04 31.75 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "118eacd3-15b6-48f3-b9cc-291b5675d2b8")
+		)
+		(pin "1"
+			(uuid "1c4652f8-f8a5-4753-b52a-01ec978d11cb")
+		)
+		(instances
+			(project "Speed-Limit-Display-v2"
+				(path "/021668ec-f5c9-4c85-a0a5-b6e62158b17d"
+					(reference "R7")
 					(unit 1)
 				)
 			)

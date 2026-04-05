@@ -1,0 +1,126 @@
+** Drc report for Speed-Limit-Display-v2.kicad_pcb **
+** Created on 2026-04-05T15:19:18 **
+** Report includes: Errors, Warnings **
+
+** Found 14 DRC violations **
+[starved_thermal]: Thermal relief connection to zone incomplete (layer B.Cu; zone min spoke count 2; actual 1)
+    Local override; error
+    @(42.5000 mm, 40.5000 mm): Zone [GND] on B.Cu, priority 1
+    @(109.8716 mm, 94.1919 mm): PTH pad B12 [GND] of J1
+[starved_thermal]: Thermal relief connection to zone incomplete (layer B.Cu; zone min spoke count 2; actual 1)
+    Local override; error
+    @(42.5000 mm, 40.5000 mm): Zone [GND] on B.Cu, priority 1
+    @(115.8216 mm, 94.1919 mm): PTH pad B1 [GND] of J1
+[starved_thermal]: Thermal relief connection to zone incomplete (layer B.Cu; zone min spoke count 2; actual 1)
+    Local override; error
+    @(42.5000 mm, 40.5000 mm): Zone [GND] on B.Cu, priority 1
+    @(43.9860 mm, 83.3627 mm): PTH pad C [GND] of SW1
+[track_dangling]: Track has unconnected end
+    Local override; warning
+    @(104.5000 mm, 76.0000 mm): Track [+5V] on F.Cu, length 4.0000 mm
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; warning
+    @(42.5000 mm, 40.5000 mm): Rectangle on Edge.Cuts
+    @(117.4416 mm, 98.8419 mm): Segment of J1 on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; warning
+    @(42.5000 mm, 40.5000 mm): Rectangle on Edge.Cuts
+    @(117.4416 mm, 95.2419 mm): Segment of J1 on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; warning
+    @(42.5000 mm, 40.5000 mm): Rectangle on Edge.Cuts
+    @(108.2516 mm, 98.8419 mm): Segment of J1 on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; warning
+    @(42.5000 mm, 40.5000 mm): Rectangle on Edge.Cuts
+    @(48.0200 mm, 98.8000 mm): Reference field of SW3
+[holes_co_located]: Drilled holes co-located
+    Local override; warning
+    @(115.5000 mm, 92.0000 mm): Via [Net-(F1-Pad1)] on F.Cu - B.Cu
+    @(115.5000 mm, 92.0000 mm): Via [Net-(F1-Pad1)] on F.Cu - B.Cu
+[silk_overlap]: Silkscreen clearance
+    Rule: board setup constraints silk; warning
+    @(100.0700 mm, 77.6750 mm): Reference field of R7
+    @(100.0225 mm, 78.2373 mm): Segment of R8 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance
+    Rule: board setup constraints silk; warning
+    @(111.9300 mm, 61.7250 mm): Reference field of C3
+    @(111.7750 mm, 61.0000 mm): Reference field of J3
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; warning
+    @(100.0700 mm, 77.6750 mm): Reference field of R7
+    @(99.5000 mm, 78.8250 mm): Pad 1 [Net-(U1-USB_D-)] of R8 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; warning
+    @(100.3200 mm, 68.9500 mm): Reference field of C2
+    @(99.2750 mm, 69.1000 mm): Pad 5 [+3V3] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; warning
+    @(100.0700 mm, 77.6750 mm): Reference field of R7
+    @(99.5000 mm, 77.1750 mm): Pad 2 [Net-(R8-Pad2)] of R8 on F.Cu
+
+** Found 13 unconnected pads **
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(105.0000 mm, 85.9250 mm): Pad 2 [GND] of U4 on F.Cu
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(105.0000 mm, 85.9250 mm): Pad 2 [GND] of U4 on F.Cu
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5000 mm): Zone [GND] on B.Cu, priority 1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(44.0400 mm, 97.0000 mm): Pad 1 [Net-(U1-IO0)] of SW3 on F.Cu
+    @(52.0000 mm, 97.0000 mm): Track [Net-(U1-IO0)] on F.Cu, length 36.0000 mm
+
+** Found 0 Footprint errors **
+
+** Ignored checks **
+    - Board edge clearance violation
+    - Footprint has no courtyard defined
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - Footprint component type doesn't match footprint pads
+
+** End of Report **
