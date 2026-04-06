@@ -288,6 +288,177 @@ PCB Design/
 
 ---
 
+## Future-Proofing: Breakout Header (J4)
+
+A 9-pin breakout header (J4) was added to expose unused GPIO pins and power rails
+for future expansion without requiring a board respin.
+
+| J4 Pin | Net | Purpose |
+|--------|-----|---------|
+| 1 | +3V3 | 3.3V power output |
+| 2 | +5V | 5V power (direct from USB) |
+| 3 | GND | Ground |
+| 4 | IO35 | General purpose GPIO (SPI, buttons) |
+| 5 | IO36 | General purpose GPIO (SPI, buttons) |
+| 6 | IO45 | General purpose GPIO (I2C for sensors) |
+| 7 | IO46 | General purpose GPIO (I2C for sensors) |
+| 8 | TXD0 | Debug UART TX (serial monitor without USB) |
+| 9 | RXD0 | Debug UART RX (serial monitor without USB) |
+
+**Potential uses:**
+- Ambient light sensor (BH1750 or VEML7700 via I2C on IO45/IO46) for auto-brightness
+- Accelerometer for motion detection
+- External serial debug without occupying USB port
+- Additional buttons or sensors
+- Powering small external accessories (3.3V or 5V)
+
+---
+
+## Generating Gerber Files
+
+### Step-by-step in KiCad:
+
+#### 1. Generate Gerber files
+
+1. Open the PCB editor (Speed-Limit-Display-v2.kicad_pcb)
+2. Go to **File > Fabrication Outputs > Gerbers (.gbr)**
+3. Set the **Output directory** to a folder like `Gerbers/`
+4. Under **Layers**, check all of these:
+   - F.Cu (front copper)
+   - B.Cu (back copper)
+   - F.Paste (front paste — for stencil)
+   - B.Paste (back paste)
+   - F.Silkscreen (front silkscreen)
+   - B.Silkscreen (back silkscreen)
+   - F.Mask (front solder mask)
+   - B.Mask (back solder mask)
+   - Edge.Cuts (board outline)
+5. Under **General Options**:
+   - Check "Use Protel filename extensions" (for compatibility)
+   - Check "Subtract soldermask from silkscreen"
+6. Click **Plot** to generate
+
+#### 2. Generate Drill files
+
+1. In the same Gerber dialog, click **Generate Drill Files...**
+2. Set format to **Excellon**
+3. Check "PTH and NPTH in single file" (most fabs prefer this)
+4. Drill units: **Millimeters**
+5. Click **Generate Drill File**
+
+#### 3. Verify Gerbers
+
+1. In KiCad, go to **File > Fabrication Outputs > Gerber Viewer** (or use the standalone GerbView)
+2. Open all generated files and visually check:
+   - All traces visible on copper layers
+   - Board outline is a closed shape
+   - Solder mask openings align with pads
+   - Silkscreen is readable and not overlapping pads
+   - Drill holes are present and correctly sized
+
+### Output files (with Protel extensions)
+
+| File | Description |
+|------|-------------|
+| .GTL | Front copper (F.Cu) |
+| .GBL | Back copper (B.Cu) |
+| .GTS | Front solder mask (F.Mask) |
+| .GBS | Back solder mask (B.Mask) |
+| .GTO | Front silkscreen (F.Silkscreen) |
+| .GBO | Back silkscreen (B.Silkscreen) |
+| .GTP | Front paste (F.Paste) |
+| .GBP | Back paste (B.Paste) |
+| .GKO or .GM1 | Board outline (Edge.Cuts) |
+| .DRL or .XLN | Drill file |
+
+---
+
+## Ordering from PCBWay
+
+### Step-by-step:
+
+1. **Zip all Gerber + drill files** into a single .zip file
+2. Go to [pcbway.com](https://www.pcbway.com) and click **Quote Now**
+3. Click **Quick-order PCB** > **Add Gerber File** and upload your .zip
+4. PCBWay will auto-detect board dimensions and layer count
+5. Set the following specs:
+
+| Setting | Value |
+|---------|-------|
+| Layers | 2 |
+| Dimensions | (auto-detected from Gerbers) |
+| Quantity | 5 (minimum for prototype) |
+| Thickness | 1.6mm |
+| Surface finish | HASL (lead-free) — cheapest option |
+| Solder mask color | Black (or your preference) |
+| Silkscreen color | White |
+| Min hole size | 0.2mm |
+| Min track/spacing | 6/6 mil (0.15mm/0.15mm) |
+| Copper weight | 1 oz |
+| Gold fingers | No |
+| Castellated holes | No |
+
+6. Click **Save to Cart** and proceed to checkout
+7. Typical turnaround: 3-5 business days manufacturing + shipping
+
+### Ordering from JLCPCB (alternative)
+
+1. Go to [jlcpcb.com](https://www.jlcpcb.com) and click **Order Now**
+2. Upload the same .zip file
+3. JLCPCB auto-detects specs — review and adjust:
+   - Same settings as PCBWay table above
+   - JLCPCB offers 5 PCBs for ~$2 + shipping
+   - Select shipping method (DHL ~$15-20 for 5-7 day delivery)
+4. Add to cart and checkout
+
+### Assembly Service (PCBA) — Optional
+
+Both PCBWay and JLCPCB offer assembly where they solder components for you.
+To use this service, you also need:
+
+1. **BOM file** (Bill of Materials) — exported from KiCad:
+   - Go to schematic editor > **Tools > Edit Symbol Fields** > **Export to CSV**
+   - Or use the existing `Speed-Limit-Display-v2.csv`
+   - Format: Reference, Value, Footprint, LCSC Part Number
+
+2. **CPL file** (Component Placement List) — exported from KiCad:
+   - Go to PCB editor > **File > Fabrication Outputs > Component Placement (.pos)**
+   - This tells the pick-and-place machine where to put each component
+
+3. Upload BOM + CPL along with Gerbers when ordering
+4. The fab house will show you which parts they have in stock
+5. For parts not in stock, you may need to supply them yourself
+
+**Note:** Assembly adds ~$30-50 for small quantities. For 5 prototype boards,
+hand soldering is usually more cost-effective. Use assembly service for
+larger batches (20+).
+
+---
+
+## Ordering Components
+
+### Recommended Suppliers
+
+| Supplier | Best for | Notes |
+|----------|----------|-------|
+| **LCSC** | All SMD parts, ESP32 modules | Cheapest, ships from China, pairs with JLCPCB |
+| **Digikey** | Everything | Fast US shipping, best search/filtering |
+| **Mouser** | Everything | Similar to Digikey, good stock |
+| **AliExpress** | GPS modules, displays, encoders | Cheapest for breakout modules, slow shipping |
+
+### Key Parts to Source
+
+| Component | Where to Buy | Search Term |
+|-----------|-------------|-------------|
+| ESP32-S3-WROOM-1-N8 | LCSC or Digikey | ESP32-S3-WROOM-1-N8 |
+| Quectel L70-R GPS | LCSC or AliExpress | L70-R or L70-RE |
+| USB-C connector | LCSC | USB-C 16P SMD |
+| EC11 rotary encoder | AliExpress or LCSC | EC11 encoder with switch |
+| 0805 resistors/caps | LCSC | Order assortment kit |
+| Piezo buzzer | LCSC or AliExpress | 12mm passive buzzer |
+
+---
+
 ## Design History
 
 | Date | Change |
@@ -298,14 +469,18 @@ PCB Design/
 | 2026-04-05 | PCB layout complete — all traces routed |
 | 2026-04-05 | GND copper pour added (F.Cu + B.Cu) |
 | 2026-04-05 | DRC passing with 0 errors |
+| 2026-04-06 | Added J4 breakout header (9-pin) for future expansion |
+| 2026-04-06 | Final DRC: 0 errors, 2 cosmetic warnings only |
 
 ---
 
 ## Next Steps
 
-1. **Generate Gerbers** from KiCad
-2. **Upload to JLCPCB/PCBWay** for review and ordering
-3. **Order components** from LCSC or Digikey
-4. **Assemble prototype** board
-5. **Test and validate** all circuits
-6. **Iterate** if needed based on testing results
+1. **Generate Gerbers** from KiCad (see instructions above)
+2. **Verify Gerbers** in GerbView or online viewer
+3. **Upload to PCBWay or JLCPCB** and order prototype boards
+4. **Order components** from LCSC or Digikey
+5. **Assemble prototype** board (hand solder or PCBA service)
+6. **Test and validate** all circuits
+7. **Update firmware** config.h pin assignments to match PCB
+8. **Iterate** if needed based on testing results
