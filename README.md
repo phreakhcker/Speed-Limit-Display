@@ -90,6 +90,26 @@ Open **Tools > Serial Monitor** at 115200 baud. Type:
 
 All tunable settings (pins, timing, thresholds) are in `config.h`. Secrets (WiFi, API key) are in `config_secrets.h`.
 
+## Custom PCB (v2)
+
+A custom 2-layer PCB designed in KiCad 10.0 with everything on one board:
+
+| Component | Details |
+|-----------|---------|
+| U1 | ESP32-S3-WROOM-1-N8 (dual core, 8MB flash, WiFi+BLE) |
+| U2 | Quectel L70-R GPS module with ceramic patch antenna |
+| U3 | LV75530PDBV 3.3V LDO regulator |
+| J1 | USB-C connector (power + programming) |
+| J2 | 12-pin display header |
+| J4 | 9-pin breakout header (spare GPIOs + power for future expansion) |
+| SW1 | EC11 rotary encoder with push button (menu navigation) |
+| SW3/SW4 | Boot and reset buttons |
+| BZ1 | Piezo buzzer (optional) |
+
+Gerber files are in `PCB Design/.../Gerber/` ready to upload to PCBWay or JLCPCB.
+
+See [docs/hardware/PCB_DESIGN.md](docs/hardware/PCB_DESIGN.md) for full design details, ordering instructions, and assembly guide.
+
 ## Project Structure
 
 ```
@@ -99,6 +119,17 @@ Speed-Limit-Display/
 │   ├── config.h                    # All tunable settings
 │   ├── config_secrets.h            # Your credentials (git-ignored)
 │   └── config_secrets_example.h    # Template for credentials
+├── PCB Design/                     # KiCad PCB project
+│   └── .../Speed-Limit-Display-v2/
+│       ├── *.kicad_sch             # Schematic
+│       ├── *.kicad_pcb             # PCB layout
+│       ├── *.kicad_dru             # Custom DRC rules
+│       └── Gerber/                 # Manufacturing files (.zip)
+├── docs/
+│   ├── hardware/
+│   │   ├── PCB_DESIGN.md           # PCB specs, ordering, assembly guide
+│   │   └── DRC_FIXES_CHECKLIST.md  # DRC fixes applied
+│   └── PRODUCT_PLAN.md             # Product roadmap
 ├── .gitignore
 ├── CONTRIBUTING.md                 # How to contribute
 ├── LICENSE

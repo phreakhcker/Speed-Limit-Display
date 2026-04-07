@@ -4,14 +4,16 @@ From prototype to product listing. Check off each task as you complete it.
 
 ---
 
-## Phase 3: PCB Design (Current)
+## Phase 3: PCB Design (DONE)
 
 | Done | # | Task | Details |
 |------|---|------|---------|
-| [ ] | 3.1 | Fix DRC errors in schematic | Use printed DRC_FIXES_CHECKLIST.md |
-| [ ] | 3.2 | Convert schematic to PCB layout | Design > Convert Schematic to PCB, arrange components |
-| [ ] | 3.3 | Route PCB traces + ground plane | Connect all pads, add ground copper pour |
-| [ ] | 3.4 | Export Gerbers + order from PCBWay | Upload to PCBWay, order 5-10 boards |
+| [x] | 3.1 | Fix DRC errors in schematic | All schematic errors resolved |
+| [x] | 3.2 | Convert schematic to PCB layout | Full layout in KiCad 10.0 |
+| [x] | 3.3 | Route PCB traces + ground plane | All traces routed, GND pour on F.Cu + B.Cu, stitching vias |
+| [x] | 3.4 | Add breakout header (J4) | 9-pin header: IO35, IO36, IO45, IO46, TXD0, RXD0, +3V3, +5V, GND |
+| [x] | 3.5 | Export Gerbers | Gerber + drill files generated, zipped and ready to upload |
+| [ ] | 3.6 | Order from PCBWay/JLCPCB | Upload Gerber zip, order 5-10 boards |
 
 ---
 
@@ -104,7 +106,7 @@ From prototype to product listing. Check off each task as you complete it.
 | Phase | Tasks | Status |
 |-------|-------|--------|
 | 1-2 Code Foundation | All | DONE |
-| 3 PCB Design | 0/4 | In Progress |
+| 3 PCB Design | 5/6 | Nearly Done (order boards) |
 | 4 Testing | 0/2 | Not Started |
 | 5 Features | 0/3 | Not Started |
 | 6 Product Software | 0/2 | Not Started |
