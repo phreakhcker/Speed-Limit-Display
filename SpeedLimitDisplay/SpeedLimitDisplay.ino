@@ -129,6 +129,7 @@ float    apiMinMoveM       = API_DEFAULT_MOVE_M;
 // currently shown so we can skip unnecessary redraws (which are slow on SPI).
 String   lastMainText      = "";
 uint16_t lastMainColor     = 0xFFFF;
+int      lastShownSpeed    = -999;    // Last displayed current speed (for redraw check)
 int      lastShownSats     = -999;
 bool     lastGpsIconSolid  = false;
 int      lastWifiBars      = -1;
@@ -1289,17 +1290,59 @@ void drawTopStatusBar(bool gpsFix, bool blinkSolid, int sats, int wBars, bool ap
 // =============================================================
 // SECTION 13: MAIN DISPLAY AREA
 // =============================================================
-// Shows the speed limit in big text, centered on screen.
+// Shows two numbers:
+//   - Your CURRENT SPEED (smaller, top area) — so you know how fast you're going
+//   - The SPEED LIMIT (big, center) — color-coded green/yellow/red
+//
+// Layout on the 128x128 screen:
+//   ┌────────────────┐
+//   │ [status bar]   │  0-16   (16px)
+//   │   45 mph       │  17-44  (current speed, small white text)
+//   │     65         │  45-105 (speed limit, BIG colored text)
+//   │    LIMIT       │  106-128 (label)
+//   └────────────────┘
 
 void clearMain() {
   display.fillRect(0, 16, 128, 112, C_BLACK());
 }
 
+// Draw just the current speed area (top portion) without redrawing everything.
+// This updates frequently (GPS speed changes often) without flickering the
+// speed limit number which changes rarely.
+void drawCurrentSpeed(int speedMph) {
+  if (speedMph == lastShownSpeed) return;   // No change, skip redraw
+
+  // Clear only the current speed area (y=17 to y=48)
+  display.fillRect(0, 17, 128, 31, C_BLACK());
+
+  display.setFont(&FreeSansBold9pt7b);
+  display.setTextColor(scaleColor(C_WHITE()));
+
+  // Build the speed string (e.g., "45 mph")
+  String speedStr;
+  if (speedMph <= 0) {
+    speedStr = "-- mph";
+  } else {
+    speedStr = String(speedMph) + " mph";
+  }
+
+  // Center it
+  int16_t x1, y1; uint16_t w, h;
+  display.getTextBounds(speedStr, 0, 0, &x1, &y1, &w, &h);
+  display.setCursor((SCREEN_W - (int)w) / 2, 38);
+  display.print(speedStr);
+
+  lastShownSpeed = speedMph;
+}
+
+// Draw the speed limit (big number) and "LIMIT" label.
+// Only redraws when the limit or color changes.
 void drawMain(const String& bigText, uint16_t bigColor) {
   uint16_t scaledBig = scaleColor(bigColor);
   if (bigText == lastMainText && scaledBig == lastMainColor) return;
 
-  clearMain();
+  // Clear only the speed limit area (y=48 to y=128)
+  display.fillRect(0, 48, 128, 80, C_BLACK());
 
   // Draw the big speed limit number
   display.setFont(&FreeSansBold24pt7b);
@@ -1309,17 +1352,17 @@ void drawMain(const String& bigText, uint16_t bigColor) {
   int16_t x1, y1; uint16_t w, h;
   display.getTextBounds(bigText, 0, 0, &x1, &y1, &w, &h);
   int x = (SCREEN_W - (int)w) / 2;
-  int y = 80;
+  int y = 95;
   display.setCursor(x, y);
   display.print(bigText);
 
-  // Draw "MPH" label below
+  // Draw "LIMIT" label below
   display.setFont(&FreeSansBold9pt7b);
-  display.setTextColor(scaleColor(C_WHITE()));
-  String mph = "MPH";
-  display.getTextBounds(mph, 0, 0, &x1, &y1, &w, &h);
-  display.setCursor((SCREEN_W - (int)w) / 2, 114);
-  display.print(mph);
+  display.setTextColor(scaleColor(C_GRAY()));
+  String lbl = "LIMIT";
+  display.getTextBounds(lbl, 0, 0, &x1, &y1, &w, &h);
+  display.setCursor((SCREEN_W - (int)w) / 2, 120);
+  display.print(lbl);
 
   lastMainText = bigText;
   lastMainColor = scaledBig;
@@ -1457,6 +1500,7 @@ void exitMenu() {
   menuDirty = true;
   lastMainText = "";
   lastMainColor = 0xFFFF;
+  lastShownSpeed = -999;
 }
 
 
@@ -1821,6 +1865,7 @@ void loop() {
                          ((millis() - lastGoodLimitMs) < LIMIT_HOLD_MS);
 
   if (!haveRecentLimit) {
+    drawCurrentSpeed(speedMph);   // Still show your speed even without a limit
     drawMain("--", C_GRAY());
     delay(25);
     return;
@@ -1828,6 +1873,7 @@ void loop() {
 
   // --- Update overspeed state and display ---
   overState = computeOverState(speedMph, currentSpeedLimitMph);
+  drawCurrentSpeed(speedMph);
   drawMain(String(currentSpeedLimitMph), colorForOverState(overState));
 
   delay(25);

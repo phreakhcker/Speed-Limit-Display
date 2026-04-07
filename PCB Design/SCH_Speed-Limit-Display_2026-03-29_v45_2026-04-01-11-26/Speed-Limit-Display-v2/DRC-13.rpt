@@ -1,0 +1,36 @@
+** Drc report for Speed-Limit-Display-v2.kicad_pcb **
+** Created on 2026-04-06T17:51:56 **
+** Report includes: Errors, Warnings **
+
+** Found 2 DRC violations **
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; warning
+    @(42.1254 mm, 39.9743 mm): Rectangle on Edge.Cuts
+    @(108.2516 mm, 98.8419 mm): Segment of J1 on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; warning
+    @(42.1254 mm, 39.9743 mm): Rectangle on Edge.Cuts
+    @(117.4416 mm, 98.8419 mm): Segment of J1 on F.Silkscreen
+
+** Found 2 unconnected pads **
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+    @(42.5000 mm, 40.5518 mm): Zone [GND] on F.Cu and B.Cu, priority 0
+
+** Found 0 Footprint errors **
+
+** Ignored checks **
+    - Thermal relief connection to zone incomplete
+    - Board edge clearance violation
+    - Footprint has no courtyard defined
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - Footprint component type doesn't match footprint pads
+
+** End of Report **

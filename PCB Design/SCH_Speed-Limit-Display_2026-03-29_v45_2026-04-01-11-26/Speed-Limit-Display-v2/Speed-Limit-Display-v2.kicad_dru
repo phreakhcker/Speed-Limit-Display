@@ -1,0 +1,9 @@
+  (version 1)
+  (rule "USB-C connector"
+    (condition "A.Reference == 'J1' && B.Reference == 'J1'")
+    (constraint clearance (min 0.1mm))
+  )
+  (rule "Edge components"
+    (condition "A.Type == 'pad' && (A.Reference == 'J1' || A.Reference == 'BZ1' || A.Reference == 'U2')")
+    (constraint edge_clearance (min 0mm))
+  )

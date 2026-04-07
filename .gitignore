@@ -19,3 +19,9 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# KiCad
+*.lck
+*-backups/
+*.kicad_prl
+.history/
