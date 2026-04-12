@@ -1,0 +1,417 @@
+<!--
+  SPEED LIMIT DISPLAY — Setup & Firmware Flash Page
+
+  HOW TO USE IN WORDPRESS:
+  1. Create a new Page in WordPress (Pages > Add New)
+  2. Title it "Setup" or "Device Setup"
+  3. Switch to the Code Editor (click the 3 dots menu > Code Editor)
+  4. Paste ALL of this code into the editor
+  5. Publish the page
+
+  The page will be available at: leemerie3d.com/setup
+  (Set the permalink/slug to "setup")
+
+  IMPORTANT: Upload these files to your WordPress media library or via FTP:
+  - firmware/manifest.json → leemerie3d.com/firmware/manifest.json
+  - firmware/speed-limit-display.bin → leemerie3d.com/firmware/speed-limit-display.bin
+
+  See WEB_SETUP_GUIDE.md for full instructions.
+-->
+
+<style>
+  .sld-page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #1a1a2e;
+    line-height: 1.6;
+  }
+
+  .sld-hero {
+    text-align: center;
+    padding: 40px 20px;
+    background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
+    border-radius: 16px;
+    margin-bottom: 40px;
+    color: #ffffff;
+  }
+
+  .sld-hero h1 {
+    font-size: 2.2em;
+    margin: 0 0 8px 0;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #ffffff;
+  }
+
+  .sld-hero .sld-subtitle {
+    font-size: 1.1em;
+    color: #a0a0c0;
+    margin: 0 0 30px 0;
+  }
+
+  .sld-hero .sld-version {
+    display: inline-block;
+    background: rgba(255,255,255,0.1);
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    color: #8888bb;
+    margin-top: 10px;
+  }
+
+  .sld-flash-section {
+    text-align: center;
+    padding: 40px 20px;
+    background: #f8f9fb;
+    border: 2px solid #e8e9f0;
+    border-radius: 16px;
+    margin-bottom: 30px;
+  }
+
+  .sld-flash-section h2 {
+    font-size: 1.5em;
+    margin: 0 0 8px 0;
+    color: #1a1a2e;
+  }
+
+  .sld-flash-section p {
+    color: #666;
+    margin: 0 0 24px 0;
+  }
+
+  .sld-flash-section esp-web-install-button button {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: white;
+    border: none;
+    padding: 16px 40px;
+    font-size: 1.15em;
+    font-weight: 600;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+  }
+
+  .sld-flash-section esp-web-install-button button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+  }
+
+  .sld-browser-note {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 8px 16px;
+    background: #fff3cd;
+    border-radius: 8px;
+    font-size: 0.85em;
+    color: #856404;
+  }
+
+  .sld-steps {
+    margin-bottom: 40px;
+  }
+
+  .sld-steps h2 {
+    font-size: 1.5em;
+    margin: 0 0 24px 0;
+    text-align: center;
+    color: #1a1a2e;
+  }
+
+  .sld-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 20px;
+    background: #ffffff;
+    border: 1px solid #e8e9f0;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    transition: border-color 0.2s;
+  }
+
+  .sld-step:hover {
+    border-color: #2563eb;
+  }
+
+  .sld-step-num {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.95em;
+  }
+
+  .sld-step-content h3 {
+    margin: 0 0 4px 0;
+    font-size: 1.05em;
+    color: #1a1a2e;
+  }
+
+  .sld-step-content p {
+    margin: 0;
+    color: #666;
+    font-size: 0.95em;
+  }
+
+  .sld-step-content a {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .sld-step-content a:hover {
+    text-decoration: underline;
+  }
+
+  .sld-step-content code {
+    background: #f1f3f5;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: #e63946;
+    font-family: 'SF Mono', Monaco, monospace;
+  }
+
+  .sld-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  .sld-feature {
+    padding: 20px;
+    background: #ffffff;
+    border: 1px solid #e8e9f0;
+    border-radius: 12px;
+    text-align: center;
+  }
+
+  .sld-feature-icon {
+    font-size: 1.8em;
+    margin-bottom: 8px;
+  }
+
+  .sld-feature h3 {
+    margin: 0 0 4px 0;
+    font-size: 1em;
+    color: #1a1a2e;
+  }
+
+  .sld-feature p {
+    margin: 0;
+    font-size: 0.85em;
+    color: #888;
+  }
+
+  .sld-troubleshoot {
+    padding: 30px;
+    background: #f8f9fb;
+    border: 1px solid #e8e9f0;
+    border-radius: 16px;
+    margin-bottom: 40px;
+  }
+
+  .sld-troubleshoot h2 {
+    font-size: 1.3em;
+    margin: 0 0 16px 0;
+    color: #1a1a2e;
+  }
+
+  .sld-troubleshoot details {
+    margin-bottom: 8px;
+    padding: 12px 16px;
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #e8e9f0;
+  }
+
+  .sld-troubleshoot summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #1a1a2e;
+    font-size: 0.95em;
+  }
+
+  .sld-troubleshoot details p {
+    margin: 10px 0 0 0;
+    color: #666;
+    font-size: 0.9em;
+  }
+
+  .sld-footer {
+    text-align: center;
+    padding: 20px;
+    color: #999;
+    font-size: 0.85em;
+  }
+
+  .sld-footer a {
+    color: #2563eb;
+    text-decoration: none;
+  }
+
+  @media (max-width: 600px) {
+    .sld-hero h1 { font-size: 1.6em; }
+    .sld-step { flex-direction: column; gap: 12px; }
+    .sld-features { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="sld-page">
+
+  <!-- HERO -->
+  <div class="sld-hero">
+    <h1>Speed Limit Display</h1>
+    <p class="sld-subtitle">Real-time GPS speed limit alerts for your car</p>
+    <span class="sld-version">Firmware v1.0.0</span>
+  </div>
+
+  <!-- FEATURES -->
+  <div class="sld-features">
+    <div class="sld-feature">
+      <div class="sld-feature-icon">&#x1F6E3;&#xFE0F;</div>
+      <h3>Live Speed Limits</h3>
+      <p>GPS-powered road detection with color-coded alerts</p>
+    </div>
+    <div class="sld-feature">
+      <div class="sld-feature-icon">&#x1F7E2;</div>
+      <h3>Color Alerts</h3>
+      <p>Green, yellow, red warnings as you approach the limit</p>
+    </div>
+    <div class="sld-feature">
+      <div class="sld-feature-icon">&#x1F4F6;</div>
+      <h3>WiFi Connected</h3>
+      <p>Uses your phone hotspot or home WiFi for data</p>
+    </div>
+    <div class="sld-feature">
+      <div class="sld-feature-icon">&#x26A1;</div>
+      <h3>USB-C Powered</h3>
+      <p>Plug into any car USB port or charger</p>
+    </div>
+  </div>
+
+  <!-- FLASH SECTION -->
+  <div class="sld-flash-section">
+    <h2>Install Firmware</h2>
+    <p>Connect your device via USB-C and click the button below to install.</p>
+
+    <esp-web-install-button manifest="/firmware/manifest.json">
+      <button slot="activate">Install Speed Limit Display</button>
+    </esp-web-install-button>
+
+    <br>
+    <span class="sld-browser-note">&#x2139;&#xFE0F; Requires Google Chrome or Microsoft Edge on desktop</span>
+  </div>
+
+  <!-- SETUP STEPS -->
+  <div class="sld-steps">
+    <h2>Quick Start Guide</h2>
+
+    <div class="sld-step">
+      <div class="sld-step-num">1</div>
+      <div class="sld-step-content">
+        <h3>Get a TomTom API Key (free)</h3>
+        <p>Go to <a href="https://developer.tomtom.com" target="_blank" rel="noopener">developer.tomtom.com</a>, create a free account, then go to Dashboard &gt; My Apps &gt; Add New App. Copy your API key. Free tier includes 2,500 requests per day.</p>
+      </div>
+    </div>
+
+    <div class="sld-step">
+      <div class="sld-step-num">2</div>
+      <div class="sld-step-content">
+        <h3>Connect the Device</h3>
+        <p>Plug your Speed Limit Display into your computer using a USB-C cable. Make sure you use a <strong>data cable</strong>, not a charge-only cable.</p>
+      </div>
+    </div>
+
+    <div class="sld-step">
+      <div class="sld-step-num">3</div>
+      <div class="sld-step-content">
+        <h3>Flash the Firmware</h3>
+        <p>Click the <strong>"Install Speed Limit Display"</strong> button above. Select your device from the popup and wait for the installation to complete (about 30 seconds).</p>
+      </div>
+    </div>
+
+    <div class="sld-step">
+      <div class="sld-step-num">4</div>
+      <div class="sld-step-content">
+        <h3>Connect to Setup WiFi</h3>
+        <p>After flashing, the device creates a WiFi hotspot called <code>SpeedLimit-Setup</code>. Connect to it with your phone. A setup page will open automatically.</p>
+      </div>
+    </div>
+
+    <div class="sld-step">
+      <div class="sld-step-num">5</div>
+      <div class="sld-step-content">
+        <h3>Enter Your Details</h3>
+        <p>On the setup page, enter your <strong>WiFi network name</strong>, <strong>WiFi password</strong>, and <strong>TomTom API key</strong>. The device will save these and restart.</p>
+      </div>
+    </div>
+
+    <div class="sld-step">
+      <div class="sld-step-num">6</div>
+      <div class="sld-step-content">
+        <h3>Mount and Drive</h3>
+        <p>Place the device on your dashboard. It will connect to WiFi, lock onto GPS satellites, and start showing speed limits within 30-60 seconds. The display turns <strong style="color:#22c55e;">green</strong> when you're under the limit, <strong style="color:#eab308;">yellow</strong> when close, and <strong style="color:#ef4444;">red</strong> when over.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TROUBLESHOOTING -->
+  <div class="sld-troubleshoot">
+    <h2>Troubleshooting</h2>
+
+    <details>
+      <summary>The "Install" button doesn't appear</summary>
+      <p>Make sure you're using <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on a desktop computer. Safari and Firefox do not support Web Serial. Mobile browsers are also not supported.</p>
+    </details>
+
+    <details>
+      <summary>No device shows up when I click Connect</summary>
+      <p>Try a different USB-C cable &mdash; some cables are charge-only and don't carry data. Also try a different USB port on your computer. On Windows, you may need to install <a href="https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers" target="_blank" rel="noopener">CP2102 drivers</a> or <a href="https://sparks.gogo.co.nz/ch340.html" target="_blank" rel="noopener">CH340 drivers</a>.</p>
+    </details>
+
+    <details>
+      <summary>The device won't connect to my WiFi</summary>
+      <p>Make sure you're connecting to a 2.4 GHz network (the ESP32 does not support 5 GHz WiFi). Double-check your WiFi password. The device will keep trying to connect &mdash; if it fails, it will re-open the setup hotspot after 60 seconds.</p>
+    </details>
+
+    <details>
+      <summary>GPS is not getting a fix</summary>
+      <p>GPS needs a clear view of the sky. Make sure the device is near a window or on the dashboard. The first GPS lock can take 30&ndash;60 seconds outdoors, or up to 5 minutes indoors. The GPS icon will blink while searching and turn solid when locked.</p>
+    </details>
+
+    <details>
+      <summary>Speed limit shows "--"</summary>
+      <p>This means the device has GPS but hasn't received speed limit data yet. Check that your WiFi is connected (WiFi icon should be solid), your TomTom API key is valid, and you're on a road that TomTom has data for. Rural or private roads may not have speed limit data.</p>
+    </details>
+
+    <details>
+      <summary>How do I update the firmware later?</summary>
+      <p>Just come back to this page, plug in your device, and click the Install button again. Your WiFi and API settings are saved separately and won't be erased during a firmware update.</p>
+    </details>
+
+    <details>
+      <summary>How do I reset to factory settings?</summary>
+      <p>Hold the <strong>Boot</strong> button while pressing <strong>Reset</strong>. This clears all saved settings and restarts the setup hotspot.</p>
+    </details>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="sld-footer">
+    <p>Speed Limit Display by <a href="https://leemerie3d.com" target="_blank">LeeMerie3D</a></p>
+    <p>Need help? Contact us at <a href="mailto:support@leemerie3d.com">support@leemerie3d.com</a></p>
+  </div>
+
+</div>
+
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
