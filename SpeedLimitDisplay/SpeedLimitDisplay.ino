@@ -68,6 +68,14 @@ enum BtnEvent : uint8_t { BTN_NONE, BTN_SHORT, BTN_LONG, BTN_VLONG };
 // --- Our Config Files ---
 #include "config.h"              // Pin definitions, timing, thresholds
 #include "config_secrets.h"      // WiFi password, API key (git-ignored)
+#include "captive_portal.h"      // WiFi setup portal for first boot
+
+// --- Runtime credentials (loaded from NVS or config_secrets.h) ---
+static String   runtimeSSID[2];
+static String   runtimePASS[2];
+static String   runtimeAPIKey;
+static int      runtimeNetCount = 0;
+static bool     usePortalCreds  = false;   // true = loaded from NVS, false = from config_secrets.h
 
 
 // =============================================================
@@ -310,6 +318,13 @@ void checkSerialCommands() {
       Serial.println();
       Serial.printf("  WiFi fails: %d (retry delay: %lu ms)\n", wifiFailCount, wifiRetryMs);
       Serial.println("==================");
+    }
+    else if (c == 'f' || c == 'F') {
+      Serial.println("[CMD] Factory reset — clearing all credentials...");
+      portalClearCreds();
+      delay(100);
+      Serial.println("[CMD] Rebooting into setup mode...");
+      ESP.restart();
     }
   }
 }
@@ -765,11 +780,11 @@ bool wifiManage() {
 
     for (int i = 0; i < n && !found; i++) {
       String scannedSSID = WiFi.SSID(i);
-      for (int j = 0; j < WIFI_NETWORK_COUNT; j++) {
-        if (scannedSSID == WIFI_NETWORKS[j][0]) {
+      for (int j = 0; j < runtimeNetCount; j++) {
+        if (scannedSSID == runtimeSSID[j]) {
           Serial.printf("[WiFi] Found: %s (RSSI: %d) — connecting...\n",
-                        WIFI_NETWORKS[j][0], WiFi.RSSI(i));
-          WiFi.begin(WIFI_NETWORKS[j][0], WIFI_NETWORKS[j][1]);
+                        runtimeSSID[j].c_str(), WiFi.RSSI(i));
+          WiFi.begin(runtimeSSID[j].c_str(), runtimePASS[j].c_str());
           found = true;
           break;
         }
@@ -782,8 +797,8 @@ bool wifiManage() {
       // No known network found — try the first one in the list as a fallback
       // (it might be hidden or the scan might have missed it)
       Serial.printf("[WiFi] No known networks found. Trying: %s\n",
-                    WIFI_NETWORKS[0][0]);
-      WiFi.begin(WIFI_NETWORKS[0][0], WIFI_NETWORKS[0][1]);
+                    runtimeSSID[0].c_str());
+      WiFi.begin(runtimeSSID[0].c_str(), runtimePASS[0].c_str());
     }
 
     wifiConnecting = true;
@@ -981,7 +996,7 @@ int fetchSpeedLimitSnapToRoads(double lat, double lon) {
   // Build the URL
   String url = "https://api.tomtom.com/snap-to-roads/1/snap-to-roads";
   url += "?key=";
-  url += TOMTOM_API_KEY;
+  url += runtimeAPIKey;
 
   Serial.printf("[API] Snap-to-Roads: %d points\n", pointsAdded);
 
@@ -1071,7 +1086,7 @@ int fetchSpeedLimitReverseGeocode(double lat, double lon) {
   url += ",";
   url += String(lon, 6);
   url += ".json?key=";
-  url += TOMTOM_API_KEY;
+  url += runtimeAPIKey;
   url += "&returnSpeedLimit=true";
   url += "&radius=";
   url += String(GEOCODE_RADIUS_M);   // Reduced from 100m to 25m for better accuracy
@@ -1625,15 +1640,53 @@ void setup() {
     limitHistory[i] = -1;
   }
 
+  // --- Check for saved credentials (captive portal) ---
+  // If customer has set up via portal, use those credentials.
+  // Otherwise fall back to hardcoded config_secrets.h (for development).
+  if (portalHasCredentials()) {
+    PortalCreds creds = portalLoadCreds();
+    runtimeSSID[0] = creds.ssid;
+    runtimePASS[0] = creds.pass;
+    runtimeSSID[1] = creds.ssid2;
+    runtimePASS[1] = creds.pass2;
+    runtimeAPIKey  = creds.apikey;
+    runtimeNetCount = creds.networkCount;
+    usePortalCreds = true;
+    Serial.printf("[WiFi] Loaded %d network(s) from portal setup\n", runtimeNetCount);
+  } else {
+    // Check if config_secrets.h has real credentials (not placeholders)
+    bool hasHardcoded = (WIFI_NETWORK_COUNT > 0 &&
+                         String(WIFI_NETWORKS[0][0]) != "Your_Home_WiFi" &&
+                         String(TOMTOM_API_KEY) != "Your_TomTom_API_Key_Here");
+
+    if (!hasHardcoded) {
+      // No credentials anywhere — launch captive portal
+      Serial.println("[Portal] No credentials found. Starting setup portal...");
+      portalStart(display);
+
+      // Stay in portal mode — don't continue to normal setup
+      // The main loop will call portalLoop() instead of normal operation
+      return;
+    }
+
+    // Use hardcoded credentials from config_secrets.h (developer mode)
+    for (int i = 0; i < WIFI_NETWORK_COUNT && i < 2; i++) {
+      runtimeSSID[i] = WIFI_NETWORKS[i][0];
+      runtimePASS[i] = WIFI_NETWORKS[i][1];
+    }
+    runtimeAPIKey = TOMTOM_API_KEY;
+    runtimeNetCount = min(WIFI_NETWORK_COUNT, 2);
+    usePortalCreds = false;
+    Serial.printf("[WiFi] Using hardcoded credentials (%d networks)\n", runtimeNetCount);
+  }
+
   // Start WiFi (non-blocking — won't freeze here)
-  // On boot, try the first network. The wifiManage() function will
-  // scan for all known networks if this one doesn't connect.
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_NETWORKS[0][0], WIFI_NETWORKS[0][1]);
+  WiFi.begin(runtimeSSID[0].c_str(), runtimePASS[0].c_str());
   wifiConnecting = true;
   wifiConnectStart = millis();
   Serial.printf("[WiFi] %d networks configured. Trying: %s\n",
-                WIFI_NETWORK_COUNT, WIFI_NETWORKS[0][0]);
+                runtimeNetCount, runtimeSSID[0].c_str());
 
   // Setup watchdog timer — reboots if main loop freezes
   // The ESP32-C3 uses a newer API that takes a config struct instead of two arguments.
@@ -1706,6 +1759,13 @@ void setup() {
 // to minimize data loss.
 
 void loop() {
+  // --- If in portal mode, only run the portal ---
+  if (portalRunning) {
+    portalLoop();
+    delay(10);
+    return;
+  }
+
   // Pet the watchdog — "I'm still alive!"
   // If we don't do this within WATCHDOG_TIMEOUT_SEC seconds, the ESP32 reboots.
   esp_task_wdt_reset();
